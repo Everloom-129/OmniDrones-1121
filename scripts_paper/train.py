@@ -238,7 +238,7 @@ def main(cfg):
         if save_interval > 0 and i % save_interval == 0:
             if hasattr(policy, "state_dict"):
                 ckpt_path = os.path.join(run.dir, f"checkpoint_{collector._frames}.pt")
-                logging.info(f"Save checkpoint to {str(ckpt_path)}")
+                logging.info(f"Save checkpoint to {str(_path)}")
                 torch.save(policy.state_dict(), ckpt_path)
 
         run.log(info)

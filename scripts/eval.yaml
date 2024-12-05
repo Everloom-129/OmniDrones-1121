@@ -1,0 +1,33 @@
+defaults:
+  - task: Track
+  - algo: ppo
+  # - checkpoint_path: /data3/tonyw/drone_model_zoo/TrackTarget_ppo_0.pt
+  - _self_
+
+hydra:
+  searchpath:
+    - file://../cfg
+
+headless: false  # Set to false to visualize evaluation
+checkpoint_path: /data3/tonyw/drone_model_zoo/TrackTarget_ppo_0.pt   # Path to the model checkpoint
+num_eval_episodes: 10
+save_video: true
+use_wandb: false
+seed: 0
+
+sim: ${task.sim}
+env: ${task.env}
+
+viewer:
+  resolution: [960, 720]
+  eye: [8, 0., 6.]
+  lookat: [0., 0., 1.]
+
+wandb:
+  group: ${oc.select:..task.name}
+  run_name: ${oc.select:..task.name,test}-${oc.select:..algo.name,none}-eval
+  job_type: eval
+  entity:
+  project: omnidrones
+  mode: disabled
+  tags: 

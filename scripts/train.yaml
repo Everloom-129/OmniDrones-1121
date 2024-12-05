@@ -9,7 +9,7 @@ headless: true
 sim: ${task.sim}
 env: ${task.env}
 
-total_frames: 150_000_000
+total_frames: 150
 max_iters: -1
 eval_interval: -1
 save_interval: -1
@@ -26,7 +26,7 @@ wandb:
   job_type: train
   entity:
   project: omnidrones
-  mode: online # set to 'disabled' when debugging locally
+  mode: disabled # set to 'disabled' when debugging locally
   run_id:
   monitor_gym: True
   tags:

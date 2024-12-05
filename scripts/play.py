@@ -26,7 +26,7 @@ from torchrl.envs.transforms import TransformedEnv, InitTracker, Compose
 
 FILE_PATH = os.path.dirname(__file__)
 
-@hydra.main(config_path=FILE_PATH, config_name="train", version_base=None)
+@hydra.main(config_path=FILE_PATH, config_name="play", version_base=None)
 def main(cfg):
     OmegaConf.register_new_resolver("eval", eval)
     OmegaConf.resolve(cfg)

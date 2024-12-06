@@ -81,6 +81,19 @@ def main(cfg):
             env.reward_spec,
             device=base_env.device
         )
+        if hasattr(cfg, "checkpoint_path"):
+            checkpoint_path = cfg.checkpoint_path
+        else:
+            # Construct default path based on task and algo name
+            checkpoint_path = f"models/{cfg.task.name}-{cfg.algo.name.lower()}.pt"
+        
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location=base_env.device)
+            policy.load_state_dict(checkpoint)
+            print(f"Loaded checkpoint from {checkpoint_path}")
+        else:
+            raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
+        
     except KeyError:
         raise NotImplementedError(f"Unknown algorithm: {cfg.algo.name}")
 

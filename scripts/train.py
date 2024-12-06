@@ -31,6 +31,8 @@ from omni_drones.learning import ALGOS
 from setproctitle import setproctitle
 from torchrl.envs.transforms import TransformedEnv, InitTracker, Compose
 
+logging.getLogger('carb').setLevel(logging.ERROR)
+logging.getLogger('omni.graph.core').setLevel(logging.ERROR)
 
 @hydra.main(version_base=None, config_path=".", config_name="train")
 def main(cfg):

@@ -103,7 +103,9 @@ class FlyThrough(IsaacEnv):
         self.gates_config = [
             {"pos": (0., 0., 2.)},
             {"pos": (3., 0., 2.)},
+            # {"pos": (3., 0., 4.)},
             {"pos": (6., 0., 2.)},
+            # {"pos": (6., 4., 2.)},
         ]
         super().__init__(cfg, headless)
 

@@ -34,27 +34,41 @@ from omni_drones.utils.torch import euler_to_quaternion, quat_axis
 from tensordict.tensordict import TensorDict, TensorDictBase
 from torchrl.data import UnboundedContinuousTensorSpec, CompositeSpec, DiscreteTensorSpec
 
-
 def attach_payload(parent_path):
+    """Attaches a payload to a drone using a prismatic joint.
+    
+    Creates a small cuboid payload and attaches it to the drone's base link using a 
+    prismatic joint that allows vertical motion. The joint has limits, damping and 
+    stiffness to constrain the payload's movement.
+
+    Args:
+        parent_path (str): Path to the parent drone prim to attach payload to
+    """
     from omni.isaac.core import objects
     import omni.physx.scripts.utils as script_utils
     from pxr import UsdPhysics
 
+    # Create payload cube with small mass
     payload_prim = objects.DynamicCuboid(
         prim_path=parent_path + "/payload",
-        scale=torch.tensor([0.1, 0.1, .15]),
-        mass=0.0001
+        scale=torch.tensor([0.1, 0.1, .15]),  # Thin vertical cuboid shape
+        mass=0.0001  # Very light mass
     ).prim
 
+    # Get parent drone prim and stage
     parent_prim = prim_utils.get_prim_at_path(parent_path + "/base_link")
     stage = prim_utils.get_current_stage()
+
+    # Create prismatic joint between payload and drone
     joint = script_utils.createJoint(stage, "Prismatic", payload_prim, parent_prim)
     UsdPhysics.DriveAPI.Apply(joint, "linear")
-    joint.GetAttribute("physics:lowerLimit").Set(-0.15)
-    joint.GetAttribute("physics:upperLimit").Set(0.15)
-    joint.GetAttribute("physics:axis").Set("Z")
-    joint.GetAttribute("drive:linear:physics:damping").Set(10.)
-    joint.GetAttribute("drive:linear:physics:stiffness").Set(10000.)
+
+    # Configure joint properties
+    joint.GetAttribute("physics:lowerLimit").Set(-0.15)  # Lower vertical limit
+    joint.GetAttribute("physics:upperLimit").Set(0.15)   # Upper vertical limit
+    joint.GetAttribute("physics:axis").Set("Z")          # Allow vertical motion only
+    joint.GetAttribute("drive:linear:physics:damping").Set(10.)      # Add damping
+    joint.GetAttribute("drive:linear:physics:stiffness").Set(10000.) # Add stiffness
 
 
 class Hover(IsaacEnv):

@@ -143,12 +143,53 @@ def lemniscate(t, c):
     sin_t = torch.sin(t)
     cos_t = torch.cos(t)
     sin2p1 = torch.square(sin_t) + 1
-
+    # one_t = torch.ones_like(t)
     x = torch.stack([
         cos_t, sin_t * cos_t, c * sin_t
     ], dim=-1) / sin2p1.unsqueeze(-1)
 
     return x
+
+def smooth_square(t, c, size=1.0):
+    """Generate a smooth square trajectory with 4 waypoints
+    Args:
+        t: time parameter in [0, 2π]
+        size: size of the square
+    Returns:
+        x: tensor of shape (..., 3) for (x,y,z) coordinates
+    """
+    # Normalize t to [0, 4] to represent 4 segments
+    t_norm = (t % (2*torch.pi)) / (torch.pi/2)
+    segment = torch.floor(t_norm)  # Which segment we're in (0,1,2,3)
+    alpha = t_norm - segment  # Position within segment [0,1]
+    
+    # Smooth transition function (cubic hermite)
+    alpha = alpha * alpha * (3 - 2*alpha)
+    
+    # Four corners of the square (clockwise from top-right)
+    waypoints = torch.tensor([
+        [1, 1, 0],   # Top-right
+        [1, -1, 0],  # Bottom-right
+        [-1, -1, 0], # Bottom-left
+        [-1, 1, 0],  # Top-left
+    ], device=t.device) * size
+
+    # Add a small vertical oscillation
+    height = c
+    # height = torch.ones_like(t) * 0.2
+    # Get current and next waypoint
+    idx = segment.long() % 4
+    next_idx = (idx + 1) % 4
+    
+    # Interpolate between waypoints
+    pos = (1 - alpha).unsqueeze(-1) * waypoints[idx] + \
+          alpha.unsqueeze(-1) * waypoints[next_idx]
+    
+    # Add height variation
+    pos = torch.cat([pos[..., :2], height.unsqueeze(-1)], dim=-1)
+    
+    return pos
+
 
 def scale_time(t, a: float=1.0):
     return t / (1 + 1/(a*torch.abs(t)))

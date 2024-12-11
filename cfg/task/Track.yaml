@@ -17,12 +17,13 @@ time_encoding: true
 intrinsics: false
 wind: false
 
-reset_thres: 0.5
+reset_thres: 0.9
 future_traj_steps: 4
 
 reward_effort_weight: 0.1
-reward_action_smoothness_weight: 0.
-reward_motion_smoothness_weight: 0.
+reward_action_smoothness_weight: 0.1
+reward_motion_smoothness_weight: 0.1
 reward_distance_scale: 1.6
+reward_speed_scale: 0.5
 
 action_transform: null

@@ -21,8 +21,8 @@ parameters:
       - ppo_priv_critic
 
   total_frames:
-    # value: 15_000_000
-    value: 150_000_000
+    value: 15_000_000
+    # value: 150_000_000
 
   headless:
     value: true

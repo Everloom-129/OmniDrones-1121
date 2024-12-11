@@ -1,6 +1,6 @@
 # OmniDrones
 
-[![Docs status](https://img.shields.io/badge/docs-passing-brightgreen.svg)](https://omnidrones.readthedocs.io/en/latest/)
+[![Docs status](https://img.shields.io/badge/docs-passing-brightgreen.svg)](https://omnidrones.readthedocs.io/en/la/)
 
 ## How to generate md files from omnidrones
 

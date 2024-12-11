@@ -7,7 +7,7 @@ defaults:
   # - /base/randomization_base@_here_
 
 env:
-  num_envs: 32
+  num_envs: 9
 
 drone_model:
   name: Hummingbird
@@ -17,8 +17,8 @@ time_encoding: true
 
 reward_effort_weight: 0.1
 reward_distance_scale: 1.0
-gate_moving_range: 1.0
-gate_scale: 1.1
+gate_moving_range: 0.0
+gate_scale: 2.0
 reset_on_collision: false
 
 action_transform: null

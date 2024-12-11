@@ -34,7 +34,15 @@ from tensordict.tensordict import TensorDict, TensorDictBase
 from torchrl.data import UnboundedContinuousTensorSpec, CompositeSpec, DiscreteTensorSpec
 from omni.isaac.debug_draw import _debug_draw
 
-from ..utils import lemniscate, scale_time
+from ..utils import lemniscate, scale_time, smooth_square
+# Track environment for training drones to follow a lemniscate trajectory (Figure 8)
+# Provides a challenging control task with continuous state and action spaces
+# Includes features like:
+# - Configurable trajectory parameters (scale, rotation, speed)
+# - Future trajectory prediction in observations
+# - Comprehensive rewards for tracking, stability and efficiency
+# - Optional wind disturbances
+# - Visualization tools for debugging
 
 class Track(IsaacEnv):
     r"""
@@ -79,7 +87,7 @@ class Track(IsaacEnv):
     | Parameter               | Type  | Default       | Description                                                                                                                                                                                                                             |
     | ----------------------- | ----- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
     | `drone_model`           | str   | "hummingbird" | Specifies the model of the drone being used in the environment.                                                                                                                                                                         |
-    | `reset_thres`           | float | 0.5           | Threshold for the distance between the drone and its target, upon exceeding which the episode will be reset.                                                                                                                            |
+    | `reset_thres`          | float | 0.5           | Threshold for the distance between the drone and its target, upon exceeding which the episode will be reset.                                                                                                                            |
     | `future_traj_steps`     | int   | 4             | Number of future trajectory steps the drone needs to predict.                                                                                                                                                                           |
     | `reward_distance_scale` | float | 1.2           | Scales the reward based on the distance between the drone and its target.                                                                                                                                                               |
     | `time_encoding`         | bool  | True          | Indicates whether to include time encoding in the observation space. If set to True, a 4-dimensional vector encoding the current progress of the episode is included in the observation. If set to False, this feature is not included. |
@@ -89,6 +97,7 @@ class Track(IsaacEnv):
         self.reward_effort_weight = cfg.task.reward_effort_weight
         self.reward_action_smoothness_weight = cfg.task.reward_action_smoothness_weight
         self.reward_distance_scale = cfg.task.reward_distance_scale
+        self.reward_speed_scale = cfg.task.reward_speed_scale
         self.time_encoding = cfg.task.time_encoding
         self.future_traj_steps = int(cfg.task.future_traj_steps)
         assert self.future_traj_steps > 0
@@ -135,7 +144,7 @@ class Track(IsaacEnv):
         )
         self.traj_w_dist = D.Uniform(
             torch.tensor(0.8, device=self.device),
-            torch.tensor(1.1, device=self.device)
+            torch.tensor(100, device=self.device)
         )
         self.origin = torch.tensor([0., 0., 2.], device=self.device)
 
@@ -202,6 +211,7 @@ class Track(IsaacEnv):
             "tracking_error": UnboundedContinuousTensorSpec(1),
             "tracking_error_ema": UnboundedContinuousTensorSpec(1),
             "action_smoothness": UnboundedContinuousTensorSpec(1),
+            "velocity_error": UnboundedContinuousTensorSpec(1),
         }).expand(self.num_envs).to(self.device)
         self.observation_spec["stats"] = stats_spec
         self.stats = stats_spec.zero()
@@ -216,6 +226,7 @@ class Track(IsaacEnv):
 
         t0 = torch.zeros(len(env_ids), device=self.device)
         pos = lemniscate(t0 + self.traj_t0, self.traj_c[env_ids]) + self.origin
+        # pos = smooth_square(t0 + self.traj_t0, ????) + self.origin # todo 需要调整
         rot = euler_to_quaternion(self.init_rpy_dist.sample(env_ids.shape))
         vel = torch.zeros(len(env_ids), 1, 6, device=self.device)
         self.drone.set_world_poses(
@@ -301,12 +312,20 @@ class Track(IsaacEnv):
         # spin reward
         spin = torch.square(self.drone.vel[..., -1])
         reward_spin = 0.5 / (1.0 + torch.square(spin))
+        
+        # speed reward
+        # current_velocity = torch.norm(self.drone.vel[..., :3], dim=-1)  # Get linear velocity magnitude
+        # target_velocity = torch.norm(self.traj_w.unsqueeze(-1), dim=-1) * 0.5  # Approximate desired velocity
+        # velocity_error = torch.abs(current_velocity - target_velocity)
+        # reward_velocity = self.reward_speed_scale * torch.exp(-velocity_error)
+
 
         reward = (
             reward_pose
             + reward_pose * (reward_up + reward_spin)
             + reward_effort
             + reward_action_smoothness
+            # + reward_velocity
         )
 
         misbehave = (
@@ -345,6 +364,8 @@ class Track(IsaacEnv):
         traj_rot = self.traj_rot[env_ids].unsqueeze(1).expand(-1, t.shape[1], 4)
 
         target_pos = vmap(lemniscate)(t, self.traj_c[env_ids])
+        # base_size = self.traj_scale[env_ids][..., 0].unsqueeze(1)  # 只取x轴缩放
+        # target_pos = vmap(smooth_square)(t, base_size)
         target_pos = vmap(quat_rotate)(traj_rot, target_pos) * self.traj_scale[env_ids].unsqueeze(1)
 
         return self.origin + target_pos

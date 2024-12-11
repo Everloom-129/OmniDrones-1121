@@ -101,10 +101,10 @@ class FlyThrough(IsaacEnv):
         # self.gate_moving_range = cfg.task.gate_moving_range
         self.gate_scale = cfg.task.gate_scale
         self.gates_config = [
-            {"pos": (0., 0., 2.)},
-            {"pos": (3., 0., 2.)},
+            {"pos": (0., 0., 2.), "ori": (0.7071, 0., 0., 0.7071)},
+            {"pos": (3., 0., 2.), "ori": (0., 0., 0., 0.)},
             # {"pos": (3., 0., 4.)},
-            {"pos": (6., 0., 2.)},
+            {"pos": (6., 0., 2.), "ori": (0., 0., 0., 0.)},
             # {"pos": (6., 4., 2.)},
         ]
         super().__init__(cfg, headless)
@@ -181,7 +181,8 @@ class FlyThrough(IsaacEnv):
                 f"/World/envs/env_0/Gate_{i}",
                 usd_path=ASSET_PATH + "/usd/gate_fixed.usd",
                 translation=gate_cfg["pos"],
-                scale=scale
+                scale=scale,
+                orientation=gate_cfg["ori"]
             )
 
         self.drone.spawn(translations=[(-2., 0.0, 2.0)])

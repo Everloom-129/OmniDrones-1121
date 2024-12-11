@@ -10,7 +10,7 @@ sim: ${task.sim}
 env: ${task.env}
 
 # Add checkpoint path
-checkpoint_path: "/home/tonyw/Projects/RL_drone/OD_main/models/FlyThrough-ppo-15000000.pt"
+ckpt_path: "/home/tonyw/Projects/RL_drone/OD_main/models/Track-ppo-15000000.pt"
 
 total_frames: -1
 seed: 0
@@ -21,6 +21,6 @@ viewer:
   lookat: [0., 0., 1.]
 
 defaults:
-  - task: FlyThrough
+  - task: Track
   - algo: ppo
   - _self_

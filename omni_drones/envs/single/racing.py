@@ -45,6 +45,38 @@ from omni_drones.views import ArticulationView, RigidPrimView
 
 from omni_drones.robots import ASSET_PATH
 
+
+def quat_to_matrix(quaternions):
+    """
+    Convert rotations given as quaternions to rotation matrices.
+    
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+    
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    r, i, j, k = torch.unbind(quaternions, -1)
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+
+
 class Racing(IsaacEnv):
     r"""
     A basic control task where the agent must fly the UAV through the gate.
@@ -147,9 +179,13 @@ class Racing(IsaacEnv):
         self.target_pos = torch.zeros(self.num_envs, 1, 3, device=self.device)
         self.crossed_plane = torch.zeros(self.num_envs, 1, device=self.device, dtype=bool)
 
+        self.next_gate_idx = torch.zeros(self.num_envs, 1, device=self.device, dtype=torch.long)
+        self.prev_next_gate_pos = None
+        self.prev_next_gate_drone_rpos = None
+
         self.init_pos_dist = D.Uniform(
-            torch.tensor([-2.5, -1.5, 1.5], device=self.device),
-            torch.tensor([-2.0, 1.5, 2.5], device=self.device)
+            torch.tensor([7.5, 3.5, 1.5], device=self.device),
+            torch.tensor([8.5, 4.5, 2.5], device=self.device)
         )
         self.init_rpy_dist = D.Uniform(
             torch.tensor([-.2, -.2, 0.], device=self.device) * torch.pi,
@@ -188,7 +224,7 @@ class Racing(IsaacEnv):
                 orientation=gate_cfg["ori"]
             )
 
-        self.drone.spawn(translations=[(8., 0.0, 2.0)])
+        self.drone.spawn(translations=[(8.0, 4.0, 2.0)])
 
         target = objects.DynamicSphere(
             "/World/envs/env_0/target",
@@ -253,6 +289,8 @@ class Racing(IsaacEnv):
 
         self.crossed_plane[env_ids] = False
 
+        self.next_gate_idx[env_ids] = 0
+
         target_pos = self.target_pos_dist.sample((*env_ids.shape, 1))
         self.target_pos[env_ids] = target_pos
         self.target.set_world_poses(
@@ -267,15 +305,21 @@ class Racing(IsaacEnv):
         self.effort = self.drone.apply_action(actions)
 
     def _compute_state_and_obs(self):
+        # Store current values before updating them
+        self.prev_next_gate_pos = self.next_gate_pos if hasattr(self, 'next_gate_pos') else None
+
         self.drone_state = self.drone.get_state()
         self.drone_up = self.drone_state[..., 16:19]
         
         # 1. Gate Waypoint reward
         # 1.1 get gate position
         self.gates_pos = []
+        self.gates_ori = []
         for gate in self.gates:
             gate_pos = self.get_env_poses(gate.get_world_poses())[0]  # shape: [32, 1, 3]
+            gate_ori = self.get_env_poses(gate.get_world_poses())[1]  # shape: [32, 1, 4]
             self.gates_pos.append(gate_pos)
+            self.gates_ori.append(gate_ori)
         
         # 1.2 get nearest gate position
         drone_pos = self.drone_state[..., :3]  # shape: [32, 1, 3]
@@ -290,10 +334,86 @@ class Racing(IsaacEnv):
         gates_pos_stack = torch.stack(self.gates_pos, dim=1)  # shape: [32, num_gates, 1, 3]
         self.nearest_gate_pos = gates_pos_stack[batch_indices, nearest_gate_idx.squeeze(-1)]  # shape: [32, 1, 3]
         
+        # 1.3 get next gate position and orientation
+        self.next_gate_pos = gates_pos_stack[batch_indices, self.next_gate_idx.squeeze(-1)]  # shape: [32, 1, 3]
+        self.next_gate_ori = torch.stack(self.gates_ori, dim=1)[batch_indices, self.next_gate_idx.squeeze(-1)]  # shape: [32, 1, 4]
+
+        # Check if drone has passed through the next gate
+        drone_pos = self.drone_state[..., :3]  # shape: [32, 1, 3]
+        
+        # Convert gate orientation to rotation matrix
+        gate_rot = quat_to_matrix(self.next_gate_ori)  # [32, 1, 3, 3]
+        
+        # Get gate's forward direction (assuming gate's forward is along local X axis)
+        gate_forward = gate_rot[..., 0]  # [32, 1, 3]
+
+
+        # Debug visualization
+        import omni.isaac.debug_draw._debug_draw as draw
+        # draw.clear_lines()  # Clear previous debug lines
+        for i in range(self.num_envs):
+            start = self.next_gate_pos[i, 0].cpu().numpy()
+            direction = gate_forward[i, 0].cpu().numpy()
+            end = start + direction  # Arrow length of 1 meter
+            draw.draw_arrow(start, end, color=(1,0,0))  # Red arrow for forward direction
+            
+            # Optionally visualize drone position and its target gate
+            drone_pos = self.drone_state[i, 0, :3].cpu().numpy()
+            draw.draw_line(drone_pos, start, color=(0,1,0))
+
+
+
+        
+        # # Vector from gate to drone
+        # gate_to_drone = drone_pos - self.next_gate_pos  # [32, 1, 3]
+        
+        # # Project gate_to_drone onto gate's forward direction
+        # forward_projection = torch.sum(gate_to_drone * gate_forward, dim=-1)  # [32, 1]
+        
+        # # Check if drone has crossed the gate plane
+        # crossed_gate = (
+        #     # Drone was behind gate in previous step (negative projection)
+        #     (self.prev_next_gate_drone_rpos is not None) 
+        #     & (torch.sum(self.prev_next_gate_drone_rpos * gate_forward, dim=-1) < 0)
+        #     # Drone is in front of gate now (positive projection)
+        #     & (forward_projection > 0)
+        # )
+        
+        # # Check if drone passed through gate opening
+        # # Project gate_to_drone onto gate's up and right vectors
+        # gate_up = gate_rot[..., 1]  # [32, 1, 3]
+        # gate_right = gate_rot[..., 2]  # [32, 1, 3]
+        
+        # vertical_offset = torch.abs(torch.sum(gate_to_drone * gate_up, dim=-1))
+        # horizontal_offset = torch.abs(torch.sum(gate_to_drone * gate_right, dim=-1))
+        
+        # # Define gate dimensions (adjust these values based on your gate size)
+        # gate_height = 1.0 * self.gate_scale
+        # gate_width = 1.0 * self.gate_scale
+        
+        # valid_passing = (
+        #     crossed_gate 
+        #     & (vertical_offset < gate_height/2) 
+        #     & (horizontal_offset < gate_width/2)
+        # )
+        
+        # # Update next gate index when drone passes through current gate
+        # self.next_gate_idx = torch.where(
+        #     valid_passing,
+        #     (self.next_gate_idx + 1) % len(self.gates_config),
+        #     self.next_gate_idx
+        # )
+
+        # # Use previous values if they exist, otherwise use current values
+        # prev_next_gate_pos = self.prev_next_gate_pos if self.prev_next_gate_pos is not None else self.next_gate_pos
+
         # 2. relative position
         # 2.1 target position
         self.target_drone_rpos = self.target_pos - drone_pos  # shape: [32, 1, 3]
         self.gate_drone_rpos = self.nearest_gate_pos - drone_pos  # shape: [32, 1, 3]
+
+        self.next_gate_drone_rpos = self.next_gate_pos - drone_pos  # shape: [32, 1, 3]
+        self.prev_next_gate_drone_rpos = prev_next_gate_pos - drone_pos  # shape: [32, 1, 3]
 
         obs = [
             self.drone_state[..., 3:],  # shape: [32, 1, 20]
@@ -323,18 +443,20 @@ class Racing(IsaacEnv):
 
     def _compute_reward_and_done(self):
         # previously only consider one gate, need to define multiple gates
-        crossed_plane = self.drone.pos[..., 0] > 0.
-        crossing_plane = (crossed_plane & (~self.crossed_plane))
-        self.crossed_plane |= crossing_plane
-        distance_to_gate_plane = 0. - self.drone.pos[..., 0]
-        distance_to_gate_center = torch.abs(self.drone.pos[..., 1:] - self.nearest_gate_pos[..., 1:])
-        through_gate = (distance_to_gate_center < 0.5).all(-1)
+        # crossed_plane = self.drone.pos[..., 0] > 0.
+        # crossing_plane = (crossed_plane & (~self.crossed_plane))
+        # self.crossed_plane |= crossing_plane
+        # distance_to_gate_plane = 0. - self.drone.pos[..., 0]
+        # distance_to_gate_center = torch.abs(self.drone.pos[..., 1:] - self.nearest_gate_pos[..., 1:])
+        # through_gate = (distance_to_gate_center < 0.5).all(-1)
 
-        reward_gate = torch.where(
-            distance_to_gate_plane > 0.,
-            (0.4 - distance_to_gate_center).sum(-1) * torch.exp(-distance_to_gate_plane),
-            1.
-        )
+        # reward_gate = torch.where(
+        #     distance_to_gate_plane > 0.,
+        #     (0.4 - distance_to_gate_center).sum(-1) * torch.exp(-distance_to_gate_plane),
+        #     1.
+        # )
+
+
 
         # pose reward
         distance_to_target = torch.norm(self.target_drone_rpos, dim=-1)

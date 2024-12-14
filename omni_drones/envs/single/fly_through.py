@@ -45,6 +45,9 @@ from omni_drones.views import ArticulationView, RigidPrimView
 
 from omni_drones.robots import ASSET_PATH
 
+from .race_utils import quat_to_matrix,TrackLoader, draw_gate_arrow
+from omni_drones.utils.torch import quaternion_to_rotation_matrix
+
 class FlyThrough(IsaacEnv):
     r"""
     A basic control task where the agent must fly the UAV through the gate.
@@ -101,12 +104,18 @@ class FlyThrough(IsaacEnv):
         # self.gate_moving_range = cfg.task.gate_moving_range
         self.gate_scale = cfg.task.gate_scale
         self.gates_config = [
-            {"pos": (0., 0., 2.), "ori": (0.7071, 0., 0., 0.7071)},
-            {"pos": (3., 0., 2.), "ori": (0., 0., 0., 0.)},
-            # {"pos": (3., 0., 4.)},
-            {"pos": (6., 0., 2.), "ori": (0., 0., 0., 0.)},
-            # {"pos": (6., 4., 2.)},
+            {"pos": (0., 12., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., 0.]))},
+            {"pos": (0., -12., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi]))},
+            {"pos": (8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/2]))},
+            {"pos": (-8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi/2]))},
+            # {"pos": (-6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))}, # bug gate
+            # {"pos": (1.3, 1.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))}, # bug exist irrelvant to x, y position
+            {"pos": (-6.3, 7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi/4]))},
+            {"pos": (6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -3*torch.pi/4]))},
+            {"pos": (6.3, 7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))},
         ]
+
+
         super().__init__(cfg, headless)
 
         self.drone.initialize()
@@ -122,7 +131,7 @@ class FlyThrough(IsaacEnv):
             gate.initialize()
             self.gates.append(gate)
             
-            gate_frame = RigidPrimView(
+            gate_frame = RigidPrimView(!
                 f"/World/envs/env_*/Gate_{i}/frame",
                 reset_xform_properties=False,
                 shape=[self.num_envs, 1],
@@ -160,6 +169,7 @@ class FlyThrough(IsaacEnv):
 
         self.alpha = 0.7
 
+        self.draw = _debug_draw.acquire_debug_draw_interface()
 
     def _design_scene(self):
         drone_model_cfg = self.cfg.task.drone_model
@@ -258,6 +268,13 @@ class FlyThrough(IsaacEnv):
 
         self.stats.exclude("success")[env_ids] = 0.
         self.stats["success"][env_ids] = False
+
+        if self._should_render(0) and (env_ids == self.central_env_idx).any():
+            self.draw.clear_lines()
+            
+            # Draw gate direction arrows
+            for gate_cfg in self.gates_config:
+                draw_gate_arrow(self.draw,gate_cfg)
 
     def _pre_sim_step(self, tensordict: TensorDictBase):
         actions = tensordict[("agents", "action")]

@@ -11,7 +11,7 @@ __pycache__/
 
 # CIS519
 IsaacLab/
-
+git_switch.sh
 
 # Distribution / packaging
 .Python

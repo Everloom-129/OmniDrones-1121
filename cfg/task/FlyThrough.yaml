@@ -7,7 +7,7 @@ defaults:
   # - /base/randomization_base@_here_
 
 env:
-  num_envs: 9
+  num_envs: 1
 
 drone_model:
   name: Hummingbird

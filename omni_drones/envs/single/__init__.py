@@ -27,3 +27,4 @@ from .fly_through import FlyThrough
 from .forest import Forest
 from .pinball import Pinball
 from .racing import Racing
+from .racing_single import RacingSingle

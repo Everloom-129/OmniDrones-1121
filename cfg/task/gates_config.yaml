@@ -38,3 +38,8 @@ gates:
     pos: [-2.5, 6.5, 2.0]
     ori: [0.0, 0.0, 15]     
     visible: true
+
+  - id: 8
+    pos: [4.0, 6.0, 5.0]
+    ori: [0.0, 0.0, 15]     
+    visible: False

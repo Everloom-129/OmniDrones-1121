@@ -1,0 +1,24 @@
+name: RacingSimple
+
+defaults:
+  # see https://hydra.cc/docs/advanced/overriding_packages/
+  - /base/env_base@_here_
+  - /base/sim_base@_here_
+  # - /base/randomization_base@_here_
+
+env:
+  num_envs: 100
+
+drone_model:
+  name: Hummingbird
+  controller: LeePositionController
+
+time_encoding: true
+
+reward_effort_weight: 0.1
+reward_distance_scale: 1.0
+gate_moving_range: 0.0
+gate_scale: 2.0
+reset_on_collision: false
+
+action_transform: null

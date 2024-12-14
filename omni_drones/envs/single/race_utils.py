@@ -164,19 +164,21 @@ class TrackLoader:
             config = yaml.safe_load(f)
         return config
     
-    def get_gates_config(self):
-        gates = []
-        for gate in self.config['gates']:
-            pos = tuple(gate['pos'])
-            ori = euler_to_quaternion(torch.tensor(gate['ori']))
-            gates.append({
-                'id': gate['id'],
-                'pos': pos,
-                'ori': ori,
-                'visible': gate.get('visible', True)
-            })
-        return gates
-    
     @property
     def gate_scale(self):
         return self.config.get('gate_scale', 1.1)
+    
+    @staticmethod
+    def load_gates(config_dict):
+        gates = []
+        for gate in config_dict['gates']:
+            # Convert degrees to radians for orientation
+            roll, pitch, yaw = [angle * torch.pi/180 for angle in gate['ori']]
+            
+            gates.append({
+                'id': gate['id'],
+                'pos': tuple(gate['pos']),
+                'ori': euler_to_quaternion(torch.tensor([roll, pitch, yaw])),
+                'visible': gate.get('visible', True)
+            })
+        return gates

@@ -201,7 +201,7 @@ class RacingSimple(IsaacEnv):
 
     def _set_specs(self):
         drone_state_dim = self.drone.state_spec.shape[-1]
-        observation_dim = drone_state_dim + 6
+        observation_dim = drone_state_dim + 3
         if self.time_encoding:
             self.time_encoding_dim = 4
             observation_dim += self.time_encoding_dim
@@ -285,7 +285,7 @@ class RacingSimple(IsaacEnv):
         obs = [
             self.drone_state[..., 3:],
             self.target_drone_rpos,
-            torch.zeros_like(self.gate_drone_rpos),
+            # torch.zeros_like(self.gate_drone_rpos),
             self.gate_drone_rpos,
         ]
         if self.time_encoding:
@@ -353,14 +353,12 @@ class RacingSimple(IsaacEnv):
             + reward_effort
         ) # * (1 - collision_reward)
 
-        # print(distance_to_target)
         misbehave = (
             (self.drone.pos[..., 2] < 0.2)
             | (self.drone.pos[..., 2] > 2.5)
             | (self.drone.pos[..., 1].abs() > 5.)   # TODO: CHANGE TERMINATION RANGE
             | (distance_to_target > 6.)
         )
-        print("distance_to_target", distance_to_target)
         hasnan = torch.isnan(self.drone_state).any(-1)
         invalid = (crossing_plane & ~through_gate)
 

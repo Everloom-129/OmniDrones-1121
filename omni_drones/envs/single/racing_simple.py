@@ -102,6 +102,7 @@ class RacingSimple(IsaacEnv):
         self.gate_scale = cfg.task.gate_scale
         self.gates_config = [
             {"pos": (8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/2]))},
+            {"pos": (6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -3*torch.pi/4]))},
         ]
 
         super().__init__(cfg, headless)
@@ -158,8 +159,8 @@ class RacingSimple(IsaacEnv):
         #     torch.tensor([2.5, 1., 2.5], device=self.device)
         # )
 
-        self.base_target_pos = torch.tensor([8.0, -1.0, 2.0], device=self.device)
-        self.target_pos = self.base_target_pos.expand(self.num_envs, 1, 3)
+        self.base_target_pos = torch.tensor([8.0, -3.0, 2.0], device=self.device)
+        # self.target_pos = self.base_target_pos.expand(self.num_envs, 1, 3)
 
         self.alpha = 0.7
 
@@ -253,7 +254,7 @@ class RacingSimple(IsaacEnv):
         drone_state = self.drone.get_state()
         self.prev_drone_pos = drone_state[..., :3] 
 
-        target_pos = torch.tensor(self.gates_config[0]["pos"], device=self.device)
+        target_pos = torch.tensor(self.base_target_pos, device=self.device)
         self.target_pos[env_ids] = target_pos
         self.target.set_world_poses(
             target_pos + self.envs_positions[env_ids].unsqueeze(1), env_indices=env_ids
@@ -357,7 +358,7 @@ class RacingSimple(IsaacEnv):
             (self.drone.pos[..., 2] < 0.2)
             | (self.drone.pos[..., 2] > 2.5)
             | (self.drone.pos[..., 1].abs() > 5.)   # TODO: CHANGE TERMINATION RANGE
-            | (distance_to_target > 6.)
+            | (distance_to_target > 8.)
         )
         hasnan = torch.isnan(self.drone_state).any(-1)
         invalid = (crossing_plane & ~through_gate)

@@ -1,0 +1,43 @@
+# Ellipse track
+# a = 12, b = 8
+
+gates:
+  - id: 1
+    pos: [0.0, 12.0, 2.0]        # [x, y, z]
+    ori: [0.0, 0.0, 0.0]         # [roll, pitch, yaw]
+    visible: true
+
+  - id: 2
+    pos: [0.0, -12.0, 2.0]
+    ori: [0.0, 0.0, 180.0]       # pi in degrees
+    visible: true
+
+  - id: 3
+    pos: [8.0, 0.0, 2.0]
+    ori: [0.0, 0.0, -90.0]       # -pi/2 in degrees
+    visible: true
+
+  - id: 4
+    pos: [-8.0, 0.0, 2.0]
+    ori: [0.0, 0.0, 90.0]        # pi/2 in degrees
+    visible: true
+
+  - id: 5
+    pos: [-6.3, -7.4, 2.0]
+    ori: [0.0, 0.0, -45.0]       # -pi/4 in degrees
+    visible: true                 # This gate direction is inverted, TODO fix
+
+  - id: 6
+    pos: [-6.3, 7.4, 2.0]
+    ori: [0.0, 0.0, 45.0]        # pi/4 in degrees
+    visible: true
+
+  - id: 7
+    pos: [6.3, -7.4, 2.0]
+    ori: [0.0, 0.0, -135.0]      # -3*pi/4 in degrees
+    visible: true
+
+  - id: 8
+    pos: [6.3, 7.4, 2.0]
+    ori: [0.0, 0.0, -45.0]       # -pi/4 in degrees
+    visible: true

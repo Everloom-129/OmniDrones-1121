@@ -1,0 +1,36 @@
+# split_s.yaml
+gates:
+  - id: 1
+    pos: [0.0, 0.0, 4.0]        # Start high
+    ori: [0.0, 0.0, 0.0]        # Straight ahead
+    visible: true
+
+  - id: 2
+    pos: [2.0, 0.0, 4.0]        # Moving forward, still high
+    ori: [0.0, 30.0, 0.0]       # Pitched up slightly to prepare for inversion
+    visible: true
+
+  - id: 3
+    pos: [4.0, 0.0, 3.5]        # Starting to descend
+    ori: [0.0, 60.0, 0.0]       # More pitched up
+    visible: true
+
+  - id: 4
+    pos: [6.0, 0.0, 2.5]        # Mid maneuver
+    ori: [0.0, 90.0, 0.0]       # Vertical orientation
+    visible: true
+
+  - id: 5
+    pos: [8.0, 0.0, 1.5]        # Coming down
+    ori: [0.0, 120.0, 0.0]      # Starting to level out
+    visible: true
+
+  - id: 6
+    pos: [10.0, 0.0, 1.0]       # Almost complete
+    ori: [0.0, 150.0, 0.0]      # Nearly level
+    visible: true
+
+  - id: 7
+    pos: [12.0, 0.0, 1.0]       # Final gate
+    ori: [0.0, 180.0, 0.0]      # Inverted from starting orientation
+    visible: true

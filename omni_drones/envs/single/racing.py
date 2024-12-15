@@ -47,6 +47,22 @@ from omni_drones.robots import ASSET_PATH
 
 from .race_utils import *
 
+
+def ellipse(t, a=8, b=12):
+    """Generate points along an ellipse trajectory
+    Args:
+        t: Parameter along ellipse (0 to 2π)
+        a: Semi-major axis
+        b: Semi-minor axis 
+    Returns:
+        xyz coordinates on ellipse
+    """
+    x = a * torch.cos(t)
+    y = b * torch.sin(t) 
+    z = torch.full_like(t, 2.0) # 保持固定高度
+    return torch.stack([x, y, z], dim=-1)
+
+
 class Racing(IsaacEnv):
     r"""
     An advanced control task where the agent should fly the UAV through multiple gates to complete the racing.
@@ -102,17 +118,14 @@ class Racing(IsaacEnv):
         self.time_encoding = cfg.task.time_encoding
         self.reset_on_collision = cfg.task.reset_on_collision
         self.gate_scale = cfg.task.gate_scale
-        self.gates_config = [
-            {"pos": (0., 12., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., 0.]))},
-            {"pos": (0., -12., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi]))},
-            {"pos": (8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/2]))},
-            {"pos": (-8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi/2]))},
-            {"pos": (-6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))}, # bug gate
-            # {"pos": (1.3, 1.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))}, # bug exist irrelvant to x, y position
-            {"pos": (-6.3, 7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., torch.pi/4]))},
-            {"pos": (6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -3*torch.pi/4]))},
-            {"pos": (6.3, 7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/4]))},
-        ]
+     
+        map_path = "/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/ellipse.yaml"
+        # map_path = "./split_s.yaml"
+        with open(map_path, 'r') as f:
+            gates_config_dict = yaml.safe_load(f)
+        
+        self.gates_config = TrackLoader.load_gates(gates_config_dict)
+
 
         super().__init__(cfg, headless)
 
@@ -165,7 +178,6 @@ class Racing(IsaacEnv):
         )
 
         self.alpha = 0.7
-
         self.draw = _debug_draw.acquire_debug_draw_interface()
 
     def _design_scene(self):
@@ -199,12 +211,6 @@ class Racing(IsaacEnv):
             translation=(5.0, 0., 2.),
             radius=0.1,
             color=torch.tensor([1., 0., 0.]), # red
-            # visual_material={
-            # "metallic": 1.0,
-            # "roughness": 0.2,
-            # "emissive": torch.tensor([0.5, 0., 0.]),  # 发光效果
-            # "opacity": 0.8  # 透明度
-            # }
         )
         kit_utils.set_collision_properties(target.prim_path, collision_enabled=False)
         kit_utils.set_rigid_body_properties(target.prim_path, disable_gravity=True)
@@ -280,29 +286,53 @@ class Racing(IsaacEnv):
             self.draw.clear_lines()
             for gate_cfg in self.gates_config:
                 draw_gate_arrow(self.draw,gate_cfg)
+        
+            t = torch.linspace(0, 2*torch.pi, 100, device=self.device)
+            traj_points = ellipse(t)
+            point_list_0 = traj_points[:-1].tolist()
+            point_list_1 = traj_points[1:].tolist()
+            colors = [(0.0, 1.0, 1.0, 0.5) for _ in range(len(point_list_0))] # Cyan translucency
+            sizes = [3 for _ in range(len(point_list_0))]
+            self.draw.draw_lines(point_list_0, point_list_1, colors, sizes)
 
+             # 画管道边界（上下各画一条线来表示管道）
+            tube_radius = 2.2
+            # 上边界
+            upper_points = traj_points + tube_radius * torch.tensor([0., 0., 1.], device=self.device)
+            point_list_0 = upper_points[:-1].tolist()
+            point_list_1 = upper_points[1:].tolist()
+            colors = [(1.0, 0.0, 0.0, 0.3) for _ in range(len(point_list_0))]  # 红色半透明
+            self.draw.draw_lines(point_list_0, point_list_1, colors, sizes)
+            
+            # 下边界
+            lower_points = traj_points - tube_radius * torch.tensor([0., 0., 1.], device=self.device)
+            point_list_0 = lower_points[:-1].tolist()
+            point_list_1 = lower_points[1:].tolist()
+            self.draw.draw_lines(point_list_0, point_list_1, colors, sizes)
 
     def _pre_sim_step(self, tensordict: TensorDictBase):
         actions = tensordict[("agents", "action")]
         self.effort = self.drone.apply_action(actions)
-        current_time = self.progress_buf * self.dt
-        rotation = euler_to_quaternion(
-            torch.tensor([0., current_time, 0.], device=self.device)
-        ).expand(self.num_envs, 1, 4)
-        self.target.set_world_poses(
-            positions=self.target_pos + self.envs_positions.unsqueeze(1),
-            orientations=rotation
-        )
+        # current_time = float(self.progress_buf * self.dt)
+        # rotation = euler_to_quaternion(
+        #     torch.tensor([0., current_time, 0.], device=self.device)
+        # ).expand(self.num_envs, 1, 4)
+        # self.target.set_world_poses(
+        #     positions=self.target_pos + self.envs_positions.unsqueeze(1),
+        #     orientations=rotation
+        # )
 
 
+    # Observation space
     def _compute_state_and_obs(self):
-        # Store current values before updating them
         self.prev_next_gate_pos = self.next_gate_pos if hasattr(self, 'next_gate_pos') else None
 
         self.drone_state = self.drone.get_state()
         self.drone_up = self.drone_state[..., 16:19]
-        
-        # 1. Gate Waypoint reward
+        print("self.drone_state shape:", self.drone_state.shape)
+        print("self.drone_up shape:", self.drone_up.shape)
+
+        # 1. Progress reward
         # 1.1 get gate position
         self.gates_pos = []
         self.gates_ori = []
@@ -324,8 +354,6 @@ class Racing(IsaacEnv):
         batch_indices = torch.arange(self.num_envs, device=self.device)
         gates_pos_stack = torch.stack(self.gates_pos, dim=1)  # shape: [32, num_gates, 1, 3]
         self.nearest_gate_pos = gates_pos_stack[batch_indices, nearest_gate_idx.squeeze(-1)]  # shape: [32, 1, 3]
-
-
 
         # 1.3 get next gate position and orientation
         self.next_gate_pos = gates_pos_stack[batch_indices, self.next_gate_idx.squeeze(-1)]  # shape: [32, 1, 3]
@@ -395,6 +423,10 @@ class Racing(IsaacEnv):
         # self.gate_drone_rpos = self.nearest_gate_pos - drone_pos  # shape: [32, 1, 3]
         self.next_gate_drone_rpos = self.next_gate_pos - drone_pos  # shape: [32, 1, 3]
 
+        # 3. line following
+        
+
+
         obs = [
             self.drone_state[..., 3:],  # shape: [32, 1, 20]
             # self.target_drone_rpos,     # shape: [32, 1, 3]
@@ -422,17 +454,12 @@ class Racing(IsaacEnv):
             self.batch_size,
         )
 
+    # Reward function
     def _compute_reward_and_done(self):
-    
-        # reward_gate = torch.where(
-        #     distance_to_gate_plane > 0.,
-        #     (0.4 - distance_to_gate_center).sum(-1) * torch.exp(-distance_to_gate_plane),
-        #     1.
-        # )
-        
-        lambda_progress = 1.0
+        lambda_progress = 5.0
         lambda_cmd1 = -2e4
         lambda_cmd2 = -1e4
+        lambda_traj = 100 # 轨迹跟踪奖励权重
 
         # progress reward
         rpos_prev = self.prev_drone_pos - self.next_gate_pos
@@ -442,18 +469,13 @@ class Racing(IsaacEnv):
         reward_progress = (d_prev - d_curr).sum(-1, keepdim=True)  # shape: [num_envs, 1]
         # import pdb; pdb.set_trace()
 
-        # # pose reward
-        # distance_to_target = torch.norm(self.target_drone_rpos, dim=-1)
-
-        # # reward_pos = 1.0 / (1.0 + torch.square(self.reward_distance_scale * distance_to_target))
-        # reward_pos = torch.exp(-self.reward_distance_scale * distance_to_target)
         # # uprightness
-        reward_up = 0.5 * torch.square((self.drone_up[..., 2] + 1) / 2)
-
+        reward_up = 0.05 * torch.square((self.drone_up[..., 2] + 1) / 2)
+        # effort
         reward_effort = self.reward_effort_weight * torch.exp(-self.effort)
 
-        # spin = torch.square(self.drone.vel[..., -1])
-        # reward_spin = 0.5 / (1.0 + torch.square(spin))
+        spin = torch.square(self.drone.vel[..., -1])
+        reward_spin = 0.5 / (1.0 + torch.square(spin))
 
         collision_reward = torch.zeros((self.num_envs, 1), device=self.device)
 
@@ -470,37 +492,73 @@ class Racing(IsaacEnv):
                 torch.zeros_like(collision, dtype=torch.float)  # if False
         )
 
+        # Line following
+        t = torch.linspace(0, 2*torch.pi, 100, device=self.device) # [100]
+        traj_points = ellipse(t).unsqueeze(0) # [1, 100, 3]
+        drone_pos = self.drone_state[..., :3] 
+        drone_pos = drone_pos.squeeze(1)       # [num_envs, 3] 
+        distances = torch.norm(traj_points.unsqueeze(0) - drone_pos.unsqueeze(1), dim=-1).squeeze(0) # [num_envs, 100]
+        min_distances = torch.min(distances, dim=-1)[0] # [num_envs]
+        reward_traj = lambda_traj * torch.exp(-2.0 * min_distances).unsqueeze(-1) # [num_envs, 1]
 
+        # print("t shape:", t.shape)
+        # print("traj_points shape:", traj_points.shape)
+        # print("drone_pos shape:", drone_pos.shape)
+        # print("distances shape:", distances.shape)
+        # print("min_distances shape:", min_distances.shape)
+        # print("reward_traj shape:", reward_traj.shape)
+
+        # import pdb; pdb.set_trace()
+
+
+        gate_reward = torch.zeros_like(reward_progress)  # [num_envs, 1]
+        gate_passing_bonus = 5.0
         if self.valid_passing.any():
-            # success_env_ids = torch.where(self.valid_passing)[0]
-            # self.target.set_color(
-            #     torch.tensor([0.0, 1.0, 0.0]), # 绿色
-            #     env_indices=success_env_ids
-            # )
-            print(f"success passing {self.valid_passing.sum()}")
-            # self.stats["collision"].add_(collision_reward)
-        # assert reward_pos.shape == reward_up.shape == reward_spin.shape
+            # print(f"self.valid_passing shape: {self.valid_passing.shape}")
+            # print(f"self.valid_passing value: {self.valid_passing}")
+            gate_reward[self.valid_passing] = gate_passing_bonus
+
+        # speed reward
+        current_vel = self.drone.vel[..., :3]  # [num_envs, 1, 3]
+        desired_speed = 30.0  # TODO how to get really fast?
+        speed = torch.norm(current_vel, dim=-1)  # [num_envs, 1]
+        speed_reward = torch.exp(-0.5 * (speed - desired_speed)**2)  # [num_envs, 1]
+        
+        # print(f"speed_reward shape: {speed_reward.shape}")
+        pass_reward = 0.5 * self.next_gate_idx / len(self.gates_config)  # [num_envs, 1]
+        
         reward = (
             lambda_progress * reward_progress
             + reward_effort
             + reward_up
-            + collision_reward
-        )
+            # + collision_reward
+            + reward_spin
+            + reward_traj
+            # + gate_reward
+            # + speed_reward
+            # + pass_reward
+        )   
         # import pdb; pdb.set_trace()
-
+        
         # TODO: add bounding box for race track
-
+        tube_radius = 2.2 
+        out_of_bounds = (min_distances > tube_radius).unsqueeze(-1)  # [num_envs, 1]
+        boundary_penalty = torch.zeros_like(reward_progress)  # [num_envs, 1]
+        near_boundary = (min_distances > (tube_radius * 0.8)).unsqueeze(-1)
+        boundary_penalty[near_boundary] = -2.0  
+        reward = reward + boundary_penalty
+        
         misbehave = (
             (self.drone.pos[..., 2] < 0.2)
-            | (self.drone.pos[..., 2] > 2.5)
-            # | (self.drone.pos[..., 1].abs() > 2.)
-            # | (distance_to_target > 6.)
+            | (self.drone.pos[..., 2] > 4)
+            | out_of_bounds
         )
+
+  
+
         hasnan = torch.isnan(self.drone_state).any(-1)
-        # invalid = (crossing_plane & ~through_gate)
         invalid = (self.crossed_gate_plane & ~self.passed_within_gate)
         terminated = misbehave | hasnan | invalid
-        # print(misbehave, hasnan, invalid)
         truncated = (self.progress_buf >= self.max_episode_length).unsqueeze(-1)
 
         if self.reset_on_collision:
@@ -509,7 +567,7 @@ class Racing(IsaacEnv):
         self.stats["success"].bitwise_or_(self.valid_passing)
         self.stats["return"].add_(reward)
         self.stats["episode_len"][:] = self.progress_buf.unsqueeze(1)
-
+        import pdb; pdb.set_trace()
         return TensorDict(
             {
                 "agents": {

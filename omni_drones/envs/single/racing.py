@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
+import yaml
 import torch
 import torch.distributions as D
 from tensordict.tensordict import TensorDict, TensorDictBase
@@ -46,21 +46,8 @@ from omni_drones.views import ArticulationView, RigidPrimView
 from omni_drones.robots import ASSET_PATH
 
 from .race_utils import *
-
-
-def ellipse(t, a=8, b=12):
-    """Generate points along an ellipse trajectory
-    Args:
-        t: Parameter along ellipse (0 to 2π)
-        a: Semi-major axis
-        b: Semi-minor axis 
-    Returns:
-        xyz coordinates on ellipse
-    """
-    x = a * torch.cos(t)
-    y = b * torch.sin(t) 
-    z = torch.full_like(t, 2.0) # 保持固定高度
-    return torch.stack([x, y, z], dim=-1)
+# draw_gate_arrow, TrackLoader, ellipse, generate_smooth_trajectory
+import json
 
 
 class Racing(IsaacEnv):
@@ -118,14 +105,14 @@ class Racing(IsaacEnv):
         self.time_encoding = cfg.task.time_encoding
         self.reset_on_collision = cfg.task.reset_on_collision
         self.gate_scale = cfg.task.gate_scale
-     
-        map_path = "/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/ellipse.yaml"
+        self.trajectory_type = cfg.task.trajectory_type
+        
+       
+        map_path = f"/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/{self.trajectory_type}.yaml"
         # map_path = "./split_s.yaml"
         with open(map_path, 'r') as f:
-            gates_config_dict = yaml.safe_load(f)
-        
-        self.gates_config = TrackLoader.load_gates(gates_config_dict)
-
+            gates_config_yaml = yaml.safe_load(f)
+        self.gates_config = load_gates_from_yaml(gates_config_yaml)
 
         super().__init__(cfg, headless)
 
@@ -286,9 +273,19 @@ class Racing(IsaacEnv):
             self.draw.clear_lines()
             for gate_cfg in self.gates_config:
                 draw_gate_arrow(self.draw,gate_cfg)
-        
-            t = torch.linspace(0, 2*torch.pi, 100, device=self.device)
-            traj_points = ellipse(t)
+
+
+            if self.trajectory_type == "ellipse": 
+                t = torch.linspace(0, 2*torch.pi, 100, device=self.device)
+                self.trajectory = ellipse(t)
+            else:
+                self.trajectory = generate_smooth_trajectory(self.gates_config)
+            self.trajectory = torch.tensor(self.trajectory, device=self.device)  
+
+            if self.trajectory_type == "UZH_track": 
+                traj_points = self.trajectory.unsqueeze(0)
+            else:
+                traj_points = self.trajectory
             point_list_0 = traj_points[:-1].tolist()
             point_list_1 = traj_points[1:].tolist()
             colors = [(0.0, 1.0, 1.0, 0.5) for _ in range(len(point_list_0))] # Cyan translucency
@@ -329,8 +326,8 @@ class Racing(IsaacEnv):
 
         self.drone_state = self.drone.get_state()
         self.drone_up = self.drone_state[..., 16:19]
-        print("self.drone_state shape:", self.drone_state.shape)
-        print("self.drone_up shape:", self.drone_up.shape)
+        # print("self.drone_state shape:", self.drone_state.shape)
+        # print("self.drone_up shape:", self.drone_up.shape)
 
         # 1. Progress reward
         # 1.1 get gate position
@@ -492,15 +489,21 @@ class Racing(IsaacEnv):
                 torch.zeros_like(collision, dtype=torch.float)  # if False
         )
 
-        # Line following
-        t = torch.linspace(0, 2*torch.pi, 100, device=self.device) # [100]
-        traj_points = ellipse(t).unsqueeze(0) # [1, 100, 3]
+        # Line tracking reward
+        if self.trajectory_type == "ellipse": 
+            t = torch.linspace(0, 2*torch.pi, 100, device=self.device)
+            self.trajectory = ellipse(t)
+        else:
+            self.trajectory = generate_smooth_trajectory(self.gates_config)
+        self.trajectory = torch.tensor(self.trajectory, device=self.device)  
+
         drone_pos = self.drone_state[..., :3] 
         drone_pos = drone_pos.squeeze(1)       # [num_envs, 3] 
-        distances = torch.norm(traj_points.unsqueeze(0) - drone_pos.unsqueeze(1), dim=-1).squeeze(0) # [num_envs, 100]
+        assert self.trajectory.device == drone_pos.device, f"Device mismatch: trajectory on {self.trajectory.device}, drone_pos on {drone_pos.device}"
+
+        distances = torch.norm(self.trajectory.unsqueeze(0) - drone_pos.unsqueeze(1), dim=-1).squeeze() # [num_envs, 100]
         min_distances = torch.min(distances, dim=-1)[0] # [num_envs]
         reward_traj = lambda_traj * torch.exp(-2.0 * min_distances).unsqueeze(-1) # [num_envs, 1]
-
         # print("t shape:", t.shape)
         # print("traj_points shape:", traj_points.shape)
         # print("drone_pos shape:", drone_pos.shape)
@@ -567,7 +570,7 @@ class Racing(IsaacEnv):
         self.stats["success"].bitwise_or_(self.valid_passing)
         self.stats["return"].add_(reward)
         self.stats["episode_len"][:] = self.progress_buf.unsqueeze(1)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         return TensorDict(
             {
                 "agents": {

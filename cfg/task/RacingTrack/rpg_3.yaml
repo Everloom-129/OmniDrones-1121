@@ -1,0 +1,112 @@
+# RPG track from original RPG Drones repository
+# 3 laps configuration (19 gates total)
+
+gates:
+  # Lap 1
+  - id: 1
+    pos: [-1.1, -1.6, 3.6]
+    ori: [0.0, 0.0, 0.0]
+    visible: true
+
+  - id: 2
+    pos: [9.2, 6.6, 1.0]
+    ori: [0.0, 0.0, -30.0]
+    visible: true
+
+  - id: 3
+    pos: [9.2, -4.0, 1.2]
+    ori: [0.0, 0.0, -120.0]
+    visible: true
+
+  - id: 4
+    pos: [-4.5, -6.0, 3.5]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+  - id: 5
+    pos: [-4.5, -6.0, 0.8]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+  - id: 6
+    pos: [4.75, -0.9, 1.2]
+    ori: [0.0, 0.0, -90.0]
+    visible: true
+
+  - id: 7
+    pos: [-2.8, 6.8, 1.2]
+    ori: [0.0, 0.0, 135.0]
+    visible: true
+
+  # Lap 2
+  - id: 8
+    pos: [-1.1, -1.6, 3.6]
+    ori: [0.0, 0.0, 0.0]
+    visible: true
+
+  - id: 9
+    pos: [9.2, 6.6, 1.0]
+    ori: [0.0, 0.0, -30.0]
+    visible: true
+
+  - id: 10
+    pos: [9.2, -4.0, 1.2]
+    ori: [0.0, 0.0, -120.0]
+    visible: true
+
+  - id: 11
+    pos: [-4.5, -6.0, 3.5]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+  - id: 12
+    pos: [-4.5, -6.0, 0.8]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+  - id: 13
+    pos: [4.75, -0.9, 1.2]
+    ori: [0.0, 0.0, -90.0]
+    visible: true
+
+  - id: 14
+    pos: [-2.8, 6.8, 1.2]
+    ori: [0.0, 0.0, 135.0]
+    visible: true
+
+  # Lap 3
+  - id: 15
+    pos: [-1.1, -1.6, 3.6]
+    ori: [0.0, 0.0, 0.0]
+    visible: true
+
+  - id: 16
+    pos: [9.2, 6.6, 1.0]
+    ori: [0.0, 0.0, -30.0]
+    visible: true
+
+  - id: 17
+    pos: [9.2, -4.0, 1.2]
+    ori: [0.0, 0.0, -120.0]
+    visible: true
+
+  - id: 18
+    pos: [-4.5, -6.0, 3.5]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+  - id: 19
+    pos: [-4.5, -6.0, 0.8]
+    ori: [0.0, 0.0, 180.0]
+    visible: true
+
+# Initial conditions
+initial:
+  position: [-5.0, 4.5, 1.2]
+  attitude: [1.0, 0.0, 0.0, 0.0]
+  velocity: [0.0, 0.0, 0.0]
+  omega: [0.0, 0.0, 0.0]
+
+# End position
+end:
+  position: [4.75, -0.9, 1.2]

@@ -1,0 +1,43 @@
+# Circular track
+# radius = 6m
+
+gates:
+  - id: 1
+    pos: [-6.0, 0.0, 2.0]
+    ori: [0.0, 0.0, 90.0]        # 朝右
+    visible: true
+
+  - id: 101
+    pos: [-4.2, 4.2, 2.0]
+    ori: [0.0, 0.0, 45.0]
+    visible: false
+
+  - id: 2
+    pos: [0.0, 6.0, 2.0]
+    ori: [0.0, 0.0, 0.0]         # 朝前
+    visible: true
+
+  - id: 102
+    pos: [4.2, 4.2, 2.0]
+    ori: [0.0, 0.0, -45.0]
+    visible: false
+
+  - id: 3
+    pos: [6.0, 0.0, 2.0]
+    ori: [0.0, 0.0, -90.0]       # 朝左
+    visible: true
+
+  - id: 103
+    pos: [4.2, -4.2, 2.0]
+    ori: [0.0, 0.0, -135.0]
+    visible: false
+
+  - id: 4
+    pos: [0.0, -6.0, 2.0]
+    ori: [0.0, 0.0, 180.0]       # 朝后
+    visible: true
+
+  - id: 104
+    pos: [-4.2, -4.2, 2.0]
+    ori: [0.0, 0.0, 135.0]
+    visible: false

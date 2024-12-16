@@ -38,8 +38,8 @@ if __name__ == "__main__":
         print("Usage: python vis_2D_map.py <track_name>")
         sys.exit(1)
         
-    track_name = sys.argv[1]
-    yaml_file = f"{track_name}.yaml"
+    yaml_file = sys.argv[1]
+    track_name = yaml_file.split('.')[0]
     
     # Load gates data from YAML
     gates_data = load_gates_from_yaml(yaml_file)

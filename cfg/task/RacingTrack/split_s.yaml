@@ -1,36 +1,73 @@
-# split_s.yaml
+# Split-S maneuver track
 gates:
+  # Initial approach
   - id: 1
-    pos: [0.0, 0.0, 4.0]        # Start high
+    pos: [0.0, 0.0, 8.0]        # Start high
     ori: [0.0, 0.0, 0.0]        # Straight ahead
     visible: true
 
-  - id: 2
-    pos: [2.0, 0.0, 4.0]        # Moving forward, still high
-    ori: [0.0, 30.0, 0.0]       # Pitched up slightly to prepare for inversion
-    visible: true
+  - id: 101
+    pos: [2.0, 0.0, 8.0]        # Moving forward, still high
+    ori: [0.0, 30.0, 0.0]       # Starting pitch up
+    visible: false
 
-  - id: 3
-    pos: [4.0, 0.0, 3.5]        # Starting to descend
+  # Begin inversion
+  - id: 2
+    pos: [4.0, 0.0, 8.0]        
     ori: [0.0, 60.0, 0.0]       # More pitched up
     visible: true
 
+  - id: 102
+    pos: [6.0, 0.0, 7.0]        # Starting to descend
+    ori: [0.0, 90.0, 0.0]       # Vertical
+    visible: false
+
+  # Mid inversion
+  - id: 3
+    pos: [8.0, 0.0, 6.0]        
+    ori: [0.0, 120.0, 0.0]      # Past vertical
+    visible: true
+
+  - id: 103
+    pos: [10.0, 0.0, 5.0]       
+    ori: [0.0, 150.0, 0.0]      # Nearly inverted
+    visible: false
+
+  # Complete inversion and begin descent
   - id: 4
-    pos: [6.0, 0.0, 2.5]        # Mid maneuver
-    ori: [0.0, 90.0, 0.0]       # Vertical orientation
+    pos: [12.0, 0.0, 4.0]       
+    ori: [0.0, 180.0, 0.0]      # Fully inverted
     visible: true
 
+  - id: 104
+    pos: [14.0, 0.0, 3.0]       
+    ori: [0.0, 210.0, 0.0]      # Starting descent
+    visible: false
+
+  # Descending phase
   - id: 5
-    pos: [8.0, 0.0, 1.5]        # Coming down
-    ori: [0.0, 120.0, 0.0]      # Starting to level out
+    pos: [16.0, 0.0, 2.0]       
+    ori: [0.0, 240.0, 0.0]      # Steeper descent
     visible: true
 
+  - id: 105
+    pos: [18.0, 0.0, 1.5]       
+    ori: [0.0, 270.0, 0.0]      # Nearly vertical descent
+    visible: false
+
+  # Recovery and exit
   - id: 6
-    pos: [10.0, 0.0, 1.0]       # Almost complete
-    ori: [0.0, 150.0, 0.0]      # Nearly level
+    pos: [20.0, 0.0, 1.0]       
+    ori: [0.0, 300.0, 0.0]      # Beginning to level
     visible: true
 
+  - id: 106
+    pos: [22.0, 0.0, 1.0]       
+    ori: [0.0, 330.0, 0.0]      # Almost level
+    visible: false
+
+  # Final gate
   - id: 7
-    pos: [12.0, 0.0, 1.0]       # Final gate
-    ori: [0.0, 180.0, 0.0]      # Inverted from starting orientation
+    pos: [24.0, 0.0, 1.0]       
+    ori: [0.0, 360.0, 0.0]      # Level flight
     visible: true

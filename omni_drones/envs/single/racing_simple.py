@@ -346,6 +346,8 @@ class RacingSimple(IsaacEnv):
         curr_forward_projection = torch.sum(gate_to_drone * gate_forward, dim=-1)  # [32, 1]
         prev_forward_projection = torch.sum(prev_next_gate_drone_rpos * gate_forward, dim=-1)  # [32, 1]
 
+        self.distance_to_gate_plane = curr_forward_projection
+
         # Check if drone has crossed the gate plane
         self.crossed_gate_plane = (
             # Drone was behind gate in previous step (negative projection)
@@ -407,20 +409,19 @@ class RacingSimple(IsaacEnv):
         )
 
     def _compute_reward_and_done(self):
-        crossed_plane = self.drone.pos[..., 0] > 0.
-        # crossed_plane = self.crossed_gate_plane
+        # crossed_plane = self.drone.pos[..., 1] < 0.
+        crossed_plane = self.crossed_gate_plane
         crossing_plane = (crossed_plane & (~self.crossed_plane))
         self.crossed_plane |= crossed_plane
 
-        distance_to_gate_plane = 0. - self.drone.pos[..., 0]
+        # distance_to_gate_plane = 0. - self.drone.pos[..., 1]
+        distance_to_gate_plane = self.distance_to_gate_plane
 
         # TODO: CHANGE TO NEXT GATE POSITION
-        distance_to_gate_center = torch.abs(self.drone.pos[..., 1:] - self.gates_pos[0][..., 1:])
-        # distance_to_gate_center = self.offset_to_gate_center
+        # distance_to_gate_center = torch.abs(self.drone.pos[..., [0, 2]] - self.gates_pos[0][..., [0, 2]])
+        distance_to_gate_center = self.offset_to_gate_center
 
         through_gate = (distance_to_gate_center < 0.5).all(-1)   # TODO: CHANGE OFFSET
-
-
 
         reward_gate = torch.where(
             distance_to_gate_plane > 0.,

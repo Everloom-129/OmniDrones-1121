@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
+import yaml
 import torch
 import torch.distributions as D
 from tensordict.tensordict import TensorDict, TensorDictBase
@@ -45,35 +45,7 @@ from omni_drones.views import ArticulationView, RigidPrimView
 
 from omni_drones.robots import ASSET_PATH
 
-def quat_to_matrix(quaternions):
-    """
-    Convert rotations given as quaternions to rotation matrices.
-
-    Args:
-        quaternions: quaternions with real part first,
-            as tensor of shape (..., 4).
-
-    Returns:
-        Rotation matrices as tensor of shape (..., 3, 3).
-    """
-    r, i, j, k = torch.unbind(quaternions, -1)
-    two_s = 2.0 / (quaternions * quaternions).sum(-1)
-
-    o = torch.stack(
-        (
-            1 - two_s * (j * j + k * k),
-            two_s * (i * j - k * r),
-            two_s * (i * k + j * r),
-            two_s * (i * j + k * r),
-            1 - two_s * (i * i + k * k),
-            two_s * (j * k - i * r),
-            two_s * (i * k - j * r),
-            two_s * (j * k + i * r),
-            1 - two_s * (i * i + j * j),
-        ),
-        -1,
-    )
-    return o.reshape(quaternions.shape[:-1] + (3, 3))
+from .race_utils import *
 
 
 class RacingSimple(IsaacEnv):
@@ -131,17 +103,14 @@ class RacingSimple(IsaacEnv):
         self.reset_on_collision = cfg.task.reset_on_collision
         self.gate_moving_range = cfg.task.gate_moving_range
         self.gate_scale = cfg.task.gate_scale
-        self.gates_config = [
-            # {"pos": (8., 0., 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -torch.pi/2]))},
-            # {"pos": (6.3, -7.4, 2.), "ori": euler_to_quaternion(torch.tensor([0., 0., -3*torch.pi/4]))},
-            {"pos": (8., 0., 2.), "ori": euler_to_quaternion((0., 0., -torch.pi/2))},
-            {"pos": (6.3, -7.4, 2.), "ori": euler_to_quaternion((0., 0., -3*torch.pi/4))},
-        ]
+        self.trajectory_type = cfg.task.trajectory_type
 
-        self.targets_config = [
-            {"pos": (8., -1., 2.)},
-            {"pos": (5.3, -8.4, 2.)},
-        ]
+        map_path = f"/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/{self.trajectory_type}.yaml"
+        with open(map_path, 'r') as f:
+            gates_config_yaml = yaml.safe_load(f)
+        self.gates_config = load_gates_from_yaml(gates_config_yaml)
+
+        self.targets_config = calculate_targets_config(self.gates_config)
 
         super().__init__(cfg, headless)
 
@@ -228,7 +197,8 @@ class RacingSimple(IsaacEnv):
                 orientation=gate_cfg["ori"]
             )
 
-        self.drone.spawn(translations=[(-2., 0.0, 2.0)])
+        # self.drone.spawn(translations=[(-2., 0.0, 2.0)])
+        self.drone.spawn(translations=[(-8.0, -2.0, 2.0)])
 
         target = objects.DynamicSphere(
             "/World/envs/env_0/target",
@@ -313,7 +283,7 @@ class RacingSimple(IsaacEnv):
         self.drone_up = self.drone_state[..., 16:19]
         drone_pos = self.drone_state[..., :3]
 
-        gates_pos = [config['pos'] for config in self.gates_config]
+        gates_pos = [config['pos'].tolist() for config in self.gates_config]
         gates_pos_tensor = torch.tensor(gates_pos, device=self.device)
         self.gates_pos = gates_pos_tensor[self.next_gate_idx.squeeze()].unsqueeze(1)
 
@@ -330,7 +300,7 @@ class RacingSimple(IsaacEnv):
         # self.gate_drone_rpos = self.gates_pos[0] - self.drone_state[..., :3]
         self.target_drone_rpos = self.target_pos - drone_pos
 
-        self.drone_pos_diff = drone_pos - self.prev_drone_pos
+        # self.drone_pos_diff = drone_pos - self.prev_drone_pos
 
         # Convert gate orientation to rotation matrix
         gate_rot = quat_to_matrix(self.gate_ori)  # [32, 1, 3, 3]
@@ -338,6 +308,8 @@ class RacingSimple(IsaacEnv):
         gate_forward = gate_rot[..., 0]  # [32, 1, 3]
         gate_to_drone = drone_pos - self.gates_pos  # [32, 1, 3]
         # self.distance_to_gate_center = torch.norm(gate_to_drone, dim=-1)
+
+        self.prev_target_drone_rpos = self.target_pos - self.prev_drone_pos
 
         prev_next_gate_drone_rpos = self.prev_drone_pos - self.gates_pos
         gate_to_drone = drone_pos - self.gates_pos  # [32, 1, 3]
@@ -382,8 +354,6 @@ class RacingSimple(IsaacEnv):
             & (horizontal_offset < gate_width/2)
         )
 
-        self.prev_drone_pos = drone_pos
-
         obs = [
             self.drone_state[..., 3:],
             self.target_drone_rpos,
@@ -397,6 +367,8 @@ class RacingSimple(IsaacEnv):
         self.pos_error = torch.norm(self.target_drone_rpos, dim=-1)
         self.stats["pos_error"].mul_(self.alpha).add_((1-self.alpha) * self.pos_error)
         self.stats["drone_uprightness"].mul_(self.alpha).add_((1-self.alpha) * self.drone_up[..., 2])
+
+        self.prev_drone_pos = drone_pos
 
         return TensorDict(
             {
@@ -429,8 +401,14 @@ class RacingSimple(IsaacEnv):
             1.
         )
 
-        # pose reward
         distance_to_target = torch.norm(self.target_drone_rpos, dim=-1)
+
+        # progress reward
+        target_drone_rpos = self.target_pos - self.drone_state[..., :3]
+        distance_to_target = torch.norm(target_drone_rpos, dim=-1)
+        prev_distance_to_target = torch.norm(self.prev_target_drone_rpos, dim=-1)
+        progress_reward = prev_distance_to_target - distance_to_target
+
 
         # reward_pos = 1.0 / (1.0 + torch.square(self.reward_distance_scale * distance_to_target))
         reward_pos = torch.exp(-self.reward_distance_scale * distance_to_target)
@@ -444,20 +422,27 @@ class RacingSimple(IsaacEnv):
 
         if self.reset_on_collision:
             collision = (
-                self.gate_frame
+                self.gate_frames[0]
                 .get_net_contact_forces()
                 .any(-1)
                 .any(-1, keepdim=True)
             )
-            # collision_reward = collision.float()
+            collision_reward = collision.float()
+
+        # if collision.any():
+        #     print(collision.nonzero(as_tuple=True)[0])
+        #     import pdb; pdb.set_trace()
 
             # self.stats["collision"].add_(collision_reward)
         assert reward_pos.shape == reward_up.shape == reward_spin.shape
+
         reward = (
             reward_pos
             + 0.5 * reward_gate
             + (reward_pos + 0.3) * (reward_up + reward_spin)
             + reward_effort
+            + 100 * progress_reward
+            - 0.5 * collision_reward
         ) # * (1 - collision_reward)
 
         misbehave = (
@@ -475,10 +460,10 @@ class RacingSimple(IsaacEnv):
         if self.reset_on_collision:
             terminated |= collision
 
-        reached_target = distance_to_target < 0.5  # TODO CHANGE TO CROSSING GATE
+        reached_target = distance_to_target < 0.2  # TODO CHANGE TO CROSSING GATE
         # if reached_target.any():
-            # print(reached_target.nonzero(as_tuple=True)[0])
-            # import pdb; pdb.set_trace()
+        #     print(reached_target.nonzero(as_tuple=True)[0])
+        #     import pdb; pdb.set_trace()
         final_gate_index = len(self.gates_config) - 1
         not_final_gate = self.next_gate_idx < final_gate_index
         self.next_gate_idx[reached_target & not_final_gate] += 1
@@ -487,7 +472,7 @@ class RacingSimple(IsaacEnv):
         final_target_pos = torch.tensor(self.gates_config[-1]["pos"], device=self.device)
 
         distance_to_final_target = torch.norm(final_target_pos - self.drone_state[..., :3], dim=-1)
-        reached_final_target = distance_to_final_target < 0.5   # TODO CHANGE TO CROSSING GATE
+        reached_final_target = distance_to_final_target < 0.2   # TODO CHANGE TO CROSSING GATE
         # self.next_gate_idx[reached_final_target] = 0
 
         self.stats["success"].bitwise_or_(reached_final_target)

@@ -46,7 +46,7 @@ from omni_drones.views import ArticulationView, RigidPrimView
 
 from omni_drones.robots import ASSET_PATH
 
-from .race_utils import quat_to_matrix,TrackLoader, draw_gate_arrow
+from .race_utils import *
 from omni_drones.utils.torch import quaternion_to_rotation_matrix
 
 class FlyThrough(IsaacEnv):
@@ -103,13 +103,16 @@ class FlyThrough(IsaacEnv):
         self.time_encoding = cfg.task.time_encoding
         self.reset_on_collision = cfg.task.reset_on_collision
         self.gate_scale = cfg.task.gate_scale
-       
-        map_path = "/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/ellipse.yaml"
-        # map_path = "./split_s.yaml"
+        self.trajectory_type = cfg.task.trajectory_type
+        self.map_scale = cfg.task.map_scale
+
+        map_path = f"/home/tonyw/Projects/RL_drone/OD_main/cfg/task/RacingTrack/{self.trajectory_type}.yaml"
         with open(map_path, 'r') as f:
-            gates_config_dict = yaml.safe_load(f)
-        
-        self.gates_config = TrackLoader.load_gates(gates_config_dict)
+            gates_config_yaml = yaml.safe_load(f)
+        self.gates_config = load_gates_from_yaml(gates_config_yaml, self.map_scale)
+
+        drone_init_pos = torch.tensor(gates_config_yaml["initial"]["position"]) * self.map_scale
+        drone_end_pos = torch.tensor(gates_config_yaml["end"]["position"])
 
         super().__init__(cfg, headless)
 
@@ -118,7 +121,7 @@ class FlyThrough(IsaacEnv):
         self.gates = []
         self.gate_frames = [] # TODO, check frames collision
         for i, gate_cfg in enumerate(self.gates_config):
-            if gate_cfg['visible']:
+            if 1: # gate_cfg['visible']:
                 gate = ArticulationView(
                     f"/World/envs/env_*/Gate_{i}",
                     reset_xform_properties=False,
@@ -126,8 +129,8 @@ class FlyThrough(IsaacEnv):
                 )
                 gate.initialize()
                 self.gates.append(gate)
-            
-            if gate_cfg['visible']:
+
+            if 1: # gate_cfg['visible']:
                 gate_frame = RigidPrimView(
                     f"/World/envs/env_*/Gate_{i}/frame",
                     reset_xform_properties=False,
@@ -151,8 +154,10 @@ class FlyThrough(IsaacEnv):
         self.crossed_plane = torch.zeros(self.num_envs, 1, device=self.device, dtype=bool)
 
         self.init_pos_dist = D.Uniform(
-            torch.tensor([-2.5, -1.5, 1.5], device=self.device),
-            torch.tensor([-2.0, 1.5, 2.5], device=self.device)
+            torch.tensor([drone_init_pos[0]-0.5, drone_init_pos[1]-0.5, drone_init_pos[2]-0.5], device=self.device),
+            torch.tensor([drone_init_pos[0]+0.5, drone_init_pos[1]+0.5, drone_init_pos[2]+0.5], device=self.device),
+            # torch.tensor([-7.5, -1.5, 1.5], device=self.device),
+            # torch.tensor([-8.5, -2.5, 2.5], device=self.device)
         )
         self.init_rpy_dist = D.Uniform(
             torch.tensor([-.2, -.2, 0.], device=self.device) * torch.pi,
@@ -208,7 +213,7 @@ class FlyThrough(IsaacEnv):
         if self.time_encoding:
             self.time_encoding_dim = 4
             observation_dim += self.time_encoding_dim
-        
+
         self.observation_spec = CompositeSpec({
             "agents": {
                 "observation": UnboundedContinuousTensorSpec((1, observation_dim))
@@ -268,7 +273,7 @@ class FlyThrough(IsaacEnv):
         if self._should_render(0) and (env_ids == self.central_env_idx).any():
             self.draw.clear_lines()
             for gate_cfg in self.gates_config:
-                if gate_cfg['visible']:
+                if 1:
                     draw_gate_arrow(self.draw,gate_cfg)
 
     def _pre_sim_step(self, tensordict: TensorDictBase):
@@ -278,14 +283,14 @@ class FlyThrough(IsaacEnv):
     def _compute_state_and_obs(self):
         self.drone_state = self.drone.get_state()
         self.drone_up = self.drone_state[..., 16:19]
-        
+
         # 1. Gate Waypoint reward
         # 1.1 get gate position
         self.gates_pos = []
         for gate in self.gates:
             gate_pos = self.get_env_poses(gate.get_world_poses())[0]  # shape: [32, 1, 3]
             self.gates_pos.append(gate_pos)
-        
+
         # 1.2 get nearest gate position
         drone_pos = self.drone_state[..., :3]  # shape: [32, 1, 3]
         distances = []
@@ -294,12 +299,12 @@ class FlyThrough(IsaacEnv):
             distances.append(dist)
         distances = torch.stack(distances, dim=-1)  # shape: [32, 1, num_gates]
         nearest_gate_idx = torch.argmin(distances, dim=-1)  # shape: [32, 1]
-        
+
         batch_indices = torch.arange(self.num_envs, device=self.device)
-        
+
         gates_pos_stack = torch.stack(self.gates_pos, dim=1)  # shape: [32, num_gates, 1, 3]
         self.nearest_gate_pos = gates_pos_stack[batch_indices, nearest_gate_idx.squeeze(-1)]  # shape: [32, 1, 3]
-        
+
         # 2. relative position
         # 2.1 target position
         self.target_drone_rpos = self.target_pos - drone_pos  # shape: [32, 1, 3]
@@ -314,7 +319,7 @@ class FlyThrough(IsaacEnv):
         if self.time_encoding:
             t = (self.progress_buf / self.max_episode_length).unsqueeze(-1)
             obs.append(t.expand(-1, self.time_encoding_dim).unsqueeze(1))
-        
+
         obs = torch.cat(obs, dim=-1)
 
         self.pos_error = torch.norm(self.target_drone_rpos, dim=-1)

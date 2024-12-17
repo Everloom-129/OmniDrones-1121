@@ -35,3 +35,11 @@ gates:
     ori: [0.0, 0.0, 195]     
     visible: true
 
+initial:
+  position: [-3.0, 1.25, 2.0]
+  attitude: [1, 0, 0, 0]
+  velocity: [0, 0, 0]
+  omega: [0, 0, 0]
+
+end:
+  position: [4.75, -0.9, 1.2]

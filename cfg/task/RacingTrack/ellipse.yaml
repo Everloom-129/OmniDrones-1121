@@ -82,3 +82,13 @@ gates:
     pos: [-7.8, -4.0, 2.0]
     ori: [0.0, 0.0, 105.0]
     visible: false
+
+
+initial:
+  position: [-8.0, -2.0, 2.0]
+  attitude: [1, 0, 0, 0]
+  velocity: [0, 0, 0]
+  omega: [0, 0, 0]
+
+end:
+  position: [-7.9, -3.8, 2.0]

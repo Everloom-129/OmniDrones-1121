@@ -71,3 +71,13 @@ gates:
     pos: [24.0, 0.0, 1.0]       
     ori: [0.0, 360.0, 0.0]      # Level flight
     visible: true
+
+
+initial:
+  position: [-3.0, 0.0, 8.0]
+  attitude: [1, 0, 0, 0]
+  velocity: [0, 0, 0]
+  omega: [0, 0, 0]
+
+end:
+  position: [25.0, 0.0, 1.0]

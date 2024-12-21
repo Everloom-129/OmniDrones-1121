@@ -6,7 +6,11 @@ CIS5190-Applied-ML@UPenn, Applied Machine Learning (Fall 2024)
 
 ![ellipse track](project_videos/Ellipse%20Track.png)
 
+
 ### Work Summary
+> Final report can be found at [CIS519_RL4DroneRacing-Report.pdf](./CIS519_RL4DroneRacing-Report.pdf)
+
+
 Reinforcement Learning (RL)-based drone racing has emerged as a popular research topic in robotics, showcasing significant advancements in autonomous control under high-speed, dynamic conditions. The Robotics and Perception Group (RPG) at the University of Zurich(UZH) has led groundbreaking work [1,2], demonstrating the practical success of Sim2Real RL approaches in real-world.
 
 Inspired by [Prof. Antonio Loquercio's seminar](https://www.grasp.upenn.edu/events/fall-2024-grasp-on-robotics-antonio-loquercio/) [3], we aim to reproduce a simulated drone racing track and train a policy that enables agents to fly through the track as efficiently and quickly as possible. We utilize OmniDrones [4], a new simulation platform built on NVIDIA IsaacSim and IsaacLab [5,6].
